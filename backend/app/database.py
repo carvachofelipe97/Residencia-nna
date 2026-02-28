@@ -5,6 +5,7 @@ import motor.motor_asyncio
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from app.config import settings
 import logging
+from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -157,7 +158,7 @@ async def init_admin_user():
                 "password_hash": hash_password(settings.ADMIN_PASSWORD),
                 "activo": True,
                 "ultimo_acceso": None,
-                "creado_en": None,  # Se agregará automáticamente
+                "creado_en": datetime.now(timezone.utc),
             }
             
             result = await db.usuarios.insert_one(admin_user)
