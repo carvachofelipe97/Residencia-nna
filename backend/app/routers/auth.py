@@ -11,7 +11,7 @@ from app.middleware.auth import get_current_active_user
 import logging
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/auth", tags=["Autenticación"])
+router = APIRouter(tags=["Autenticación"])
 security = HTTPBearer()
 
 
