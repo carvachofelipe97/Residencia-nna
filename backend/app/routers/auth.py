@@ -204,3 +204,31 @@ async def change_password(
     logger.info(f"Usuario {current_user.email} cambió su contraseña")
     
     return {"message": "Contraseña cambiada correctamente"}
+@router.post("/reset-admin")
+async def reset_admin_password():
+    from app.utils.security import hash_password, verify_password
+    from datetime import datetime, timezone
+    
+    db = get_db()
+    
+    result = await db.usuarios.delete_one({"email": "admin@residencia.cl"})
+    
+    new_admin = {
+        "email": "admin@residencia.cl",
+        "nombre": "Administrador",
+        "rol": "admin",
+        "password_hash": hash_password("Admin2025"),
+        "activo": True,
+        "ultimo_acceso": None,
+        "creado_en": datetime.now(timezone.utc),
+    }
+    
+    await db.usuarios.insert_one(new_admin)
+    user = await db.usuarios.find_one({"email": "admin@residencia.cl"})
+    is_valid = verify_password("Admin2025", user["password_hash"])
+    
+    return {
+        "message": "Usuario admin reseteado",
+        "password_verification_test": is_valid
+    }
+```
