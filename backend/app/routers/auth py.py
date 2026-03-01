@@ -22,7 +22,6 @@ async def login(credentials: UserLogin):
     """
     db = get_db()
     
-    # Buscar usuario por email
     user = await db.usuarios.find_one({"email": credentials.email})
     
     if not user:
@@ -32,14 +31,12 @@ async def login(credentials: UserLogin):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Verificar si el usuario está activo
     if not user.get("activo", True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuario desactivado. Contacte al administrador."
         )
     
-    # Verificar contraseña
     if not verify_password(credentials.password, user["password_hash"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -47,13 +44,11 @@ async def login(credentials: UserLogin):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Actualizar último acceso
     await db.usuarios.update_one(
         {"_id": user["_id"]},
         {"$set": {"ultimo_acceso": datetime.now(timezone.utc)}}
     )
     
-    # Crear tokens
     token_data = {
         "sub": str(user["_id"]),
         "email": user["email"],
@@ -66,11 +61,15 @@ async def login(credentials: UserLogin):
     
     logger.info(f"Usuario {user['email']} inició sesión")
     
+    creado_en = user.get("creado_en")
+    if creado_en is None:
+        creado_en = datetime.now(timezone.utc)
+    
     return Token(
         access_token=access_token,
         refresh_token=refresh_token,
         token_type="bearer",
-        expires_in=30 * 60,  # 30 minutos en segundos
+        expires_in=30 * 60,
         user=UserResponse(
             id=str(user["_id"]),
             email=user["email"],
@@ -78,7 +77,7 @@ async def login(credentials: UserLogin):
             rol=user["rol"],
             activo=user.get("activo", True),
             ultimo_acceso=datetime.now(timezone.utc),
-            creado_en=user.get("creado_en", datetime.now(timezone.utc))
+            creado_en=creado_en
         )
     )
 
@@ -97,7 +96,6 @@ async def refresh_token(refresh_token: str):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Verificar que sea un refresh token
     if payload.get("type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -105,7 +103,6 @@ async def refresh_token(refresh_token: str):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Crear nuevo access token
     token_data = {
         "sub": payload.get("sub"),
         "email": payload.get("email"),
@@ -136,6 +133,10 @@ async def get_me(current_user: TokenData = Depends(get_current_active_user)):
             detail="Usuario no encontrado"
         )
     
+    creado_en = user.get("creado_en")
+    if creado_en is None:
+        creado_en = datetime.now(timezone.utc)
+    
     return UserResponse(
         id=str(user["_id"]),
         email=user["email"],
@@ -143,7 +144,7 @@ async def get_me(current_user: TokenData = Depends(get_current_active_user)):
         rol=user["rol"],
         activo=user.get("activo", True),
         ultimo_acceso=user.get("ultimo_acceso"),
-        creado_en=user.get("creado_en", datetime.now(timezone.utc))
+        creado_en=creado_en
     )
 
 
@@ -176,21 +177,18 @@ async def change_password(
             detail="Usuario no encontrado"
         )
     
-    # Verificar contraseña actual
     if not verify_password(current_password, user["password_hash"]):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Contraseña actual incorrecta"
         )
     
-    # Validar nueva contraseña
     if len(new_password) < 8:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="La nueva contraseña debe tener al menos 8 caracteres"
         )
     
-    # Actualizar contraseña
     await db.usuarios.update_one(
         {"_id": current_user.user_id},
         {
@@ -204,14 +202,15 @@ async def change_password(
     logger.info(f"Usuario {current_user.email} cambió su contraseña")
     
     return {"message": "Contraseña cambiada correctamente"}
+
+
 @router.post("/reset-admin")
 async def reset_admin_password():
     from app.utils.security import hash_password, verify_password
-    from datetime import datetime, timezone
     
     db = get_db()
     
-    result = await db.usuarios.delete_one({"email": "admin@residencia.cl"})
+    await db.usuarios.delete_one({"email": "admin@residencia.cl"})
     
     new_admin = {
         "email": "admin@residencia.cl",
@@ -231,4 +230,3 @@ async def reset_admin_password():
         "message": "Usuario admin reseteado",
         "password_verification_test": is_valid
     }
-```
